@@ -124,7 +124,13 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
 .q-meta-item { display: flex; align-items: center; gap: 4px; }
 .q-reasoning { font-size: 11px; color: var(--text-2); background: var(--primary-lt); border-radius: 5px; padding: 8px 10px; margin-top: 8px; line-height: 1.5; }
 
-.group-divider { font-size: 11px; font-weight: 600; color: #7E22CE; font-family: var(--mono); margin: 4px 0 -2px; padding-left: 2px; }
+.match-group { border: 2px solid #E9D5FF; background: #FAF5FF; border-radius: 10px; padding: 14px 14px 4px; margin-bottom: 4px; }
+.match-group-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 0 4px; }
+.match-group-icon { font-size: 16px; flex-shrink: 0; }
+.match-group-title { font-size: 13px; font-weight: 700; color: #7E22CE; }
+.match-group-sub { font-size: 11px; color: #A855F7; font-family: var(--mono); margin-top: 1px; }
+.match-group .q-card { border-color: #E9D5FF; margin-bottom: 10px; }
+.match-group .q-card:last-child { margin-bottom: 10px; }
 
 /* MOBILE */
 @media (max-width: 700px) {
@@ -425,7 +431,7 @@ QUESTION TYPES — all four are variations of a multiple-choice structure:
 1. single_choice — exactly 4 options, exactly 1 correct answer.
 2. multiple_choice — 4 to 6 options, 2 or more correct answers ("select all that apply").
 3. fill_blank — a sentence containing a blank shown as ____, with 4 options to complete it, 1 correct answer.
-4. match_following — generate as a CLUSTER of single_choice questions that share the same group_id and group_label (e.g., "Match the term to its definition"). Each item to be matched becomes its own question; its options are plausible candidates (the correct match plus distractors drawn from other items or invented near-misses).
+4. match_following — generate as a CLUSTER of 3 to 5 single_choice questions that share the same group_id and group_label. This MUST represent one genuine matching exercise: pick ONE consistent pairing type (for example: defined terms matched to their definitions, OR approval value bands matched to their required approver, OR roles matched to their responsibilities) and build the entire group around that single pairing type. Every question in the group asks the test-taker to match one "left-side" item to its correct "right-side" value. The options for each question in the group must be drawn from the pool of "right-side" values belonging to THAT SAME GROUP — this makes the distractors genuinely plausible (a real but wrong match from the same set), not arbitrary unrelated text. NEVER mix two different pairing types or two unrelated policy topics into the same group_id, even if both happen to be multiple-choice-shaped. If the document does not contain at least 3 genuinely related items that can form one matching theme, do not generate a match_following group at all — use single_choice or fill_blank instead.
 
 REQUIREMENTS:
 - Generate exactly ${bankSize} questions if the document supports it. If the document is too short or thin to support ${bankSize} good-quality questions without repetition, generate fewer and explain why in document_assessment.notes.
@@ -461,7 +467,7 @@ OUTPUT — return ONLY valid JSON, no markdown formatting, no commentary before 
   ]
 }
 
-For match_following questions, group_id and group_label must be set (e.g., group_id: "G1", group_label: "Match the term to its definition") and shared across all questions in that cluster. For all other types, group_id and group_label must be null.
+For match_following questions, group_id and group_label must be set (e.g., group_id: "G1", group_label: "Match each definition to the correct term") and shared identically across all 3-5 questions in that one cluster. group_label must clearly name BOTH sides of the match (e.g., "Match each approval threshold to its required approver", not just "Match the approval threshold"). For all other types, group_id and group_label must be null. Do not create more than one or two match_following groups per question bank, and never let a group contain fewer than 3 questions.
 correct_answer is always an array of 0-based option indices, even when there is only one correct answer.`;
 }
 
@@ -487,11 +493,24 @@ function renderResults(bank, docName) {
   let html = '';
   let lastGroup = null;
 
+  let groupOpen = false;
+
   questions.forEach((q, i) => {
-    if (q.group_id && q.group_id !== lastGroup) {
-      html += '<div class="group-divider">' + escHtml(q.group_label || 'Grouped Questions') + '</div>';
+    const isNewGroup = q.group_id && q.group_id !== lastGroup;
+    const isLastInGroup = q.group_id && (i === questions.length - 1 || questions[i+1].group_id !== q.group_id);
+
+    if (isNewGroup) {
+      if (groupOpen) html += '</div>'; // close previous group wrapper if any
+      html += '<div class="match-group">' +
+        '<div class="match-group-header">' +
+          '<span class="match-group-icon">&#128279;</span>' +
+          '<div><div class="match-group-title">' + escHtml(q.group_label || 'Matching Set') + '</div>' +
+          '<div class="match-group-sub">Match the Following — answer each item below as a single choice</div></div>' +
+        '</div>';
       lastGroup = q.group_id;
+      groupOpen = true;
     } else if (!q.group_id) {
+      if (groupOpen) { html += '</div>'; groupOpen = false; }
       lastGroup = null;
     }
 
@@ -512,7 +531,6 @@ function renderResults(bank, docName) {
       '<div class="q-card-head">' +
         '<span class="q-tag type">' + escHtml(typeLabel) + '</span>' +
         '<span class="q-tag difficulty-' + escHtml(q.difficulty||'Medium') + '">' + escHtml(q.difficulty||'') + '</span>' +
-        (q.group_id ? '<span class="q-tag group">Grouped</span>' : '') +
         '<span class="q-id">' + escHtml(q.question_id||('Q'+(i+1))) + '</span>' +
       '</div>' +
       '<div class="q-text">' + escHtml(q.question_text||'') + '</div>' +
@@ -525,6 +543,7 @@ function renderResults(bank, docName) {
     '</div>';
   });
 
+  if (groupOpen) html += '</div>';
   listEl.innerHTML = html;
   document.getElementById('results-card').classList.add('visible');
   document.getElementById('results-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
