@@ -137,8 +137,8 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
 }
 
 /* ── PHASE C: REVIEW ── */
-.review-section, .finalize-section, .locked-section { display: none; }
-.review-section.visible, .finalize-section.visible, .locked-section.visible { display: block; }
+.review-section, .finalize-section, .locked-section, .paper-section { display: none; }
+.review-section.visible, .finalize-section.visible, .locked-section.visible, .paper-section.visible { display: block; }
 
 .review-progress { margin-bottom: 16px; }
 .review-progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
@@ -205,6 +205,12 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
 .paper-preview-num { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--primary-lt); color: var(--primary); font-weight: 700; font-size: 10px; display: flex; align-items: center; justify-content: center; }
 .paper-downloads { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .paper-downloads .btn-primary, .paper-downloads .btn-secondary { margin-top: 0; }
+
+.paper-branding { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+.branding-field { display: flex; flex-direction: column; }
+.branding-input { width: 100%; border: 1px solid var(--border-2); border-radius: 6px; padding: 9px 12px; font-size: 13px; font-family: var(--sans); margin-top: 4px; }
+.branding-input:focus { outline: none; border-color: var(--primary); }
+.branding-hint { font-size: 11px; color: var(--text-3); margin-top: -2px; }
 </style>
 </head>
 <body>
@@ -367,6 +373,18 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
           <div class="step-title">Generate a test paper</div>
           <div class="step-desc" id="paper-desc">Randomly draw questions from the locked bank to produce a printable paper. Draw again anytime for a different combination.</div>
         </div>
+      </div>
+
+      <div class="paper-branding">
+        <div class="branding-field">
+          <label class="edit-label">Company / Organization Name</label>
+          <input type="text" id="paper-company" class="branding-input" maxlength="60" placeholder="e.g. Meridian Group">
+        </div>
+        <div class="branding-field">
+          <label class="edit-label">Test / Assessment Name</label>
+          <input type="text" id="paper-title" class="branding-input" maxlength="80" placeholder="e.g. Code of Conduct Assessment">
+        </div>
+        <div class="branding-hint">Shown as a running header on every page of both PDFs. Pre-filled from the document &mdash; edit freely.</div>
       </div>
 
       <button class="btn-primary" id="draw-btn" onclick="generateRandomPaper()">&#127922; Draw Random Paper</button>
@@ -681,7 +699,9 @@ function startReview(questions) {
   document.getElementById('review-section').classList.add('visible');
 
   renderReviewCard();
-  document.getElementById('review-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Scroll to the generation summary first, not straight into the review card —
+  // otherwise the "X questions generated" confirmation gets scrolled past unseen.
+  document.getElementById('results-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function updateReviewProgress() {
@@ -979,7 +999,32 @@ function lockPaper() {
   const listEl = document.getElementById('locked-list');
   listEl.innerHTML = lockedBank.map(q => '<div class="q-card">' + buildReadCard(q, false) + '</div>').join('');
 
+  // Paper generation only becomes available now that a bank is actually locked
+  document.getElementById('paper-section').classList.add('visible');
+  resetPaperDraw();
+
   document.getElementById('locked-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function splitDocName(name) {
+  if (!name) return { company: '', testName: '' };
+  const parts = String(name).split(/\s+\u2014\s+/); // split on " \u2014 " em dash
+  if (parts.length >= 2) {
+    return { company: parts[0].trim(), testName: parts.slice(1).join(' - ').trim() };
+  }
+  const cleaned = String(name).replace(/\.pdf$/i, '').replace(/_/g, ' ').trim();
+  return { company: '', testName: cleaned };
+}
+
+function resetPaperDraw() {
+  currentPaperDraw = null;
+  document.getElementById('draw-btn').textContent = '\ud83c\udfb2 Draw Random Paper';
+  document.getElementById('paper-preview').innerHTML = '';
+  document.getElementById('paper-downloads').style.display = 'none';
+
+  const defaults = splitDocName(activeDocName);
+  document.getElementById('paper-company').value = defaults.company;
+  document.getElementById('paper-title').value = defaults.testName;
 }
 
 function exportLockedJSON() {
@@ -1076,22 +1121,25 @@ function buildPaperPDF(questions, withAnswers) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageWidth = 210, pageHeight = 297, margin = 20, contentWidth = pageWidth - margin * 2;
-  let y = margin;
+
+  const defaults = splitDocName(activeDocName);
+  const companyInput = document.getElementById('paper-company').value.trim();
+  const titleInput = document.getElementById('paper-title').value.trim();
+  const companyName = sanitizeForPDF(companyInput || defaults.company || 'Company Name');
+  const testNameRaw = titleInput || defaults.testName || 'Assessment';
+  const testName = sanitizeForPDF(testNameRaw) + (withAnswers ? ' - Answer Key' : ' - Question Paper');
+
+  const HEADER_HEIGHT = 14; // mm reserved at the top of every page for the running header
+  let y = margin + HEADER_HEIGHT;
 
   function checkPageBreak(neededSpace) {
     if (y + neededSpace > pageHeight - margin) {
       doc.addPage();
-      y = margin;
+      y = margin + HEADER_HEIGHT;
     }
   }
 
-  const docTitle = sanitizeForPDF(activeDocName) + (withAnswers ? ' - Answer Key' : ' - Assessment');
-
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
-  const titleLines = doc.splitTextToSize(docTitle, contentWidth);
-  doc.text(titleLines, margin, y);
-  y += titleLines.length * 7 + 4;
-
+  // Page 1 only: registration fields / instructions (not repeated on later pages)
   if (!withAnswers) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     doc.text('Name: _________________________________        Date: _______________', margin, y);
@@ -1162,9 +1210,19 @@ function buildPaperPDF(questions, withAnswers) {
     y += 5;
   });
 
+  // POST-PROCESS: running header (company + test name) and footer (page numbers) on every page
   const pageCount = doc.internal.getNumberOfPages();
   for (let p = 1; p <= pageCount; p++) {
     doc.setPage(p);
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30);
+    doc.text(companyName, margin, margin);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(110);
+    doc.text(testName, margin, margin + 5);
+    doc.setDrawColor(210); doc.setLineWidth(0.2);
+    doc.line(margin, margin + 8, pageWidth - margin, margin + 8);
+    doc.setTextColor(0);
+
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
     doc.text('Page ' + p + ' of ' + pageCount, pageWidth / 2, pageHeight - 10, { align: 'center' });
     doc.setTextColor(0);
