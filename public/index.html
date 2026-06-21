@@ -147,6 +147,9 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
 .review-approved-count { color: var(--text-3); font-family: var(--mono); }
 
 .review-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; min-height: 180px; }
+.regen-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px 10px; text-align: center; }
+.regen-loading .spinner { margin-bottom: 14px; }
+.regen-loading .processing-text { font-size: 13px; color: var(--text-2); }
 .review-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 24px; }
 .rev-btn { padding: 13px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.15s; }
 .rev-btn:hover { opacity: 0.88; }
@@ -314,19 +317,19 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
     </div>
   </div>
 
-  <!-- REVIEW — STEP 2: FINALIZE / SWAP -->
+  <!-- BANK COMPLETE — all slots approved, ready to lock -->
   <div class="finalize-section" id="finalize-section">
     <div class="step-card">
       <div class="step-header">
         <div class="step-num done">&#10003;</div>
         <div>
-          <div class="step-title">Finalize your question paper</div>
-          <div class="step-desc" id="finalize-desc">Select exactly the questions you want in the final paper</div>
+          <div class="step-title">Approved question bank</div>
+          <div class="step-desc" id="finalize-desc">Every question in the bank has been reviewed and approved</div>
         </div>
       </div>
       <div class="finalize-status" id="finalize-status"></div>
       <div class="finalize-list" id="finalize-list"></div>
-      <button class="btn-primary" id="lock-btn" disabled onclick="lockPaper()">Lock Question Paper</button>
+      <button class="btn-primary" id="lock-btn" disabled onclick="lockPaper()">Lock Approved Bank</button>
     </div>
   </div>
 
@@ -487,6 +490,8 @@ async function generateQuestionBank() {
   const config = MODE_CONFIG[selectedMode];
   const base64Data = selectedDocKey ? SAMPLE_DOCS[selectedDocKey].base64 : uploadedBase64;
   const docName = selectedDocName;
+  activeDocBase64 = base64Data;
+  activeDocName = docName;
 
   document.getElementById('processing-card').classList.add('visible');
   document.getElementById('results-card').classList.remove('visible');
@@ -620,8 +625,10 @@ function renderResults(bank, docName) {
 let reviewQueue = [];        // working copy of questions with status + edits
 let currentReviewIndex = 0;
 let editMode = false;
-let editBuffer = null;
-let lockedPaper = null;
+let isRegenerating = false;
+let lockedBank = null;
+let activeDocBase64 = null;  // the document used for this generation run, reused for replacements
+let activeDocName = null;
 
 const TYPE_LABELS = {
   single_choice: 'Single Choice', multiple_choice: 'Multiple Choice', fill_blank: 'Fill in the Blank'
@@ -786,101 +793,169 @@ function approveCurrent() {
   reviewQueue[currentReviewIndex].status = 'approved';
   advanceReview();
 }
-function rejectCurrent() {
-  reviewQueue[currentReviewIndex].status = 'rejected';
-  advanceReview();
+
+async function rejectCurrent() {
+  if (isRegenerating) return;
+  await regenerateCurrent();
 }
 
 function advanceReview() {
   currentReviewIndex++;
   if (currentReviewIndex >= reviewQueue.length) {
-    finishSequentialReview();
+    showBankComplete();
   } else {
     renderReviewCard();
   }
 }
 
-// ── STEP 2: FINALIZE / SWAP ──────────────────────────────────────
-function finishSequentialReview() {
+// ── REPLACEMENT GENERATION (on reject) ───────────────────────────
+async function regenerateCurrent() {
+  isRegenerating = true;
+  const idx = currentReviewIndex;
+  const rejectedId = reviewQueue[idx].question_id;
+
+  document.getElementById('review-card').innerHTML =
+    '<div class="regen-loading"><div class="spinner"></div>' +
+    '<div class="processing-text">Generating a replacement question for this slot...</div></div>';
+  setReviewActionsDisabled(true);
+
+  const existingTexts = reviewQueue
+    .map((q, i) => i !== idx ? q.question_text : null)
+    .filter(Boolean);
+
+  const systemPrompt = buildReplacementPrompt(existingTexts, activeDocName);
+
+  try {
+    const resp = await Promise.race([
+      fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-opus-4-5',
+          max_tokens: 1200,
+          system: systemPrompt,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: activeDocBase64 } },
+              { type: 'text', text: 'Generate the single replacement question now, following the rules exactly.' }
+            ]
+          }]
+        })
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 60000))
+    ]);
+
+    const data = await resp.json();
+    if (data.type === 'error' || data.error) throw new Error('API error: ' + (data.error ? data.error.message : 'unknown'));
+    if (!data.content || !data.content[0] || !data.content[0].text) throw new Error('Empty response from the model.');
+
+    const raw = data.content[0].text.replace(/```json|```/g, '').trim();
+    const newQuestion = JSON.parse(raw);
+    newQuestion.question_id = rejectedId;
+    newQuestion.status = 'pending';
+
+    reviewQueue[idx] = newQuestion;
+
+  } catch (e) {
+    console.error(e);
+    showError('Could not generate a replacement question (' + (e.message || 'unknown error') + '). Showing the original question again — you can try Reject once more or Edit it directly.');
+  }
+
+  isRegenerating = false;
+  setReviewActionsDisabled(false);
+  renderReviewCard();
+}
+
+function setReviewActionsDisabled(disabled) {
+  const actions = document.getElementById('review-actions');
+  actions.querySelectorAll('button').forEach(b => b.disabled = disabled);
+}
+
+function buildReplacementPrompt(existingTexts, docName) {
+  const avoidList = existingTexts.length
+    ? existingTexts.map((t, i) => (i + 1) + '. ' + t).join('\n')
+    : '(none yet)';
+  return `You are an expert assessment designer. Generate exactly ONE new question to replace one that was rejected during review of a corporate training quiz bank.
+
+DOCUMENT: ${docName}
+
+QUESTION TYPES — pick whichever fits the content best:
+1. single_choice — exactly 4 options, exactly 1 correct answer.
+2. multiple_choice — 4 to 6 options, 2 or more correct answers.
+3. fill_blank — a sentence containing a blank shown as ____, 4 options, 1 correct answer.
+
+REQUIREMENTS:
+- Must cover different content (a different section, threshold, or concept) than every question already in the bank, listed below. Do not duplicate their topic:
+${avoidList}
+- Favour genuine comprehension and judgement over simple text lookup.
+- Question text maximum 280 characters. Each option maximum 100 characters.
+- Include the source section and, if identifiable, the page number where the answer can be verified.
+- Provide a concise, specific reasoning for the correct answer.
+
+OUTPUT — return ONLY valid JSON, no markdown, no commentary, a single question object in exactly this structure:
+{
+  "question_id": "...",
+  "type": "single_choice",
+  "question_text": "...",
+  "options": ["...", "...", "...", "..."],
+  "correct_answer": [0],
+  "reasoning": "...",
+  "source_section": "Section 3.3",
+  "source_page": 2,
+  "difficulty": "Medium"
+}
+correct_answer is always an array of 0-based option indices, even when there is only one correct answer.`;
+}
+
+// ── BANK COMPLETE (all slots approved) ────────────────────────────
+function showBankComplete() {
   document.getElementById('review-section').classList.remove('visible');
   document.getElementById('finalize-section').classList.add('visible');
-  renderFinalizeChecklist();
+
+  const target = MODE_CONFIG[selectedMode].bankSize;
+  const paperSize = MODE_CONFIG[selectedMode].paperSize;
+
+  document.getElementById('finalize-desc').textContent =
+    'All ' + target + ' questions in the bank are approved. Phase D will randomly select ' + paperSize + ' of these for each printed paper.';
+  document.getElementById('finalize-status').className = 'finalize-status ok';
+  document.getElementById('finalize-status').innerHTML =
+    '&#9989; ' + target + ' of ' + target + ' questions approved \u2014 ready to lock the bank.';
+
+  const listEl = document.getElementById('finalize-list');
+  listEl.innerHTML = reviewQueue.map(q => '<div class="q-card">' + buildReadCard(q, false) + '</div>').join('');
+
+  const lockBtn = document.getElementById('lock-btn');
+  lockBtn.disabled = false;
+  lockBtn.textContent = 'Lock Approved Bank (' + target + ' Questions)';
+
   document.getElementById('finalize-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function renderFinalizeChecklist() {
-  const target = MODE_CONFIG[selectedMode].paperSize;
-  const listEl = document.getElementById('finalize-list');
-
-  let html = '';
-  reviewQueue.forEach((q, i) => {
-    const checked = q.status === 'approved' ? 'checked' : '';
-    html += '<label class="finalize-row">' +
-      '<input type="checkbox" ' + checked + ' onchange="toggleFinalizeSelection(' + i + ', this.checked)">' +
-      '<div class="finalize-row-body">' + buildReadCard(q, false) + '</div>' +
-    '</label>';
-  });
-  listEl.innerHTML = html;
-  updateFinalizeStatus();
-}
-
-function toggleFinalizeSelection(index, checked) {
-  reviewQueue[index].status = checked ? 'approved' : 'rejected';
-  updateFinalizeStatus();
-}
-
-function updateFinalizeStatus() {
-  const target = MODE_CONFIG[selectedMode].paperSize;
-  const selectedCount = reviewQueue.filter(q => q.status === 'approved').length;
-  const totalAvailable = reviewQueue.length;
-  const statusEl = document.getElementById('finalize-status');
-  const lockBtn = document.getElementById('lock-btn');
-
-  if (totalAvailable < target) {
-    statusEl.className = 'finalize-status warn';
-    statusEl.innerHTML = '&#9888;&#65039; This document only yielded ' + totalAvailable + ' candidate questions, fewer than the ' + target + ' needed. You can lock with all ' + totalAvailable + ', or go back and try a richer document.';
-    lockBtn.disabled = selectedCount !== totalAvailable;
-    lockBtn.textContent = 'Lock with ' + selectedCount + ' Questions';
-  } else if (selectedCount === target) {
-    statusEl.className = 'finalize-status ok';
-    statusEl.innerHTML = '&#9989; ' + selectedCount + ' of ' + target + ' selected \u2014 ready to lock.';
-    lockBtn.disabled = false;
-    lockBtn.textContent = 'Lock Question Paper (' + selectedCount + ' Questions)';
-  } else if (selectedCount < target) {
-    statusEl.className = 'finalize-status warn';
-    statusEl.innerHTML = '&#9888;&#65039; ' + selectedCount + ' of ' + target + ' selected \u2014 select ' + (target - selectedCount) + ' more.';
-    lockBtn.disabled = true;
-    lockBtn.textContent = 'Select ' + (target - selectedCount) + ' more to continue';
-  } else {
-    statusEl.className = 'finalize-status warn';
-    statusEl.innerHTML = '&#9888;&#65039; ' + selectedCount + ' of ' + target + ' selected \u2014 deselect ' + (selectedCount - target) + ' to continue.';
-    lockBtn.disabled = true;
-    lockBtn.textContent = 'Deselect ' + (selectedCount - target) + ' to continue';
-  }
-}
-
-// ── LOCK ──────────────────────────────────────────────────────────
 function lockPaper() {
-  lockedPaper = reviewQueue.filter(q => q.status === 'approved');
+  lockedBank = reviewQueue.slice(); // the full approved bank — all slots, all approved
 
   document.getElementById('finalize-section').classList.remove('visible');
   document.getElementById('locked-section').classList.add('visible');
 
+  const paperSize = MODE_CONFIG[selectedMode].paperSize;
+  document.getElementById('locked-title').textContent = 'Question Bank Locked';
   document.getElementById('locked-sub').textContent =
-    lockedPaper.length + ' questions \u00b7 from ' + escHtml(selectedDocName);
+    lockedBank.length + ' approved questions \u00b7 from ' + escHtml(activeDocName) +
+    ' \u00b7 Phase D will randomly draw ' + paperSize + ' of these per printed paper';
 
   const listEl = document.getElementById('locked-list');
-  listEl.innerHTML = lockedPaper.map(q => '<div class="q-card">' + buildReadCard(q, false) + '</div>').join('');
+  listEl.innerHTML = lockedBank.map(q => '<div class="q-card">' + buildReadCard(q, false) + '</div>').join('');
 
   document.getElementById('locked-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function exportLockedJSON() {
-  const blob = new Blob([JSON.stringify(lockedPaper, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(lockedBank, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'locked_question_paper.json';
+  a.download = 'locked_question_bank.json';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
