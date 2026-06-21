@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Policy Test Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
   --primary: #312E81;
@@ -195,6 +196,15 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
 .locked-next-note { font-size: 12px; color: var(--text-3); background: var(--bg); border-radius: 6px; padding: 10px 12px; margin: 16px 0; }
 .btn-secondary { width: 100%; padding: 12px; background: white; color: var(--primary); border: 1.5px solid var(--primary); border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .btn-secondary:hover { background: var(--primary-lt); }
+
+/* ── PHASE D: PAPER DRAW ── */
+.paper-section { margin-top: 20px; }
+.paper-preview { margin-top: 16px; }
+.paper-preview-title { font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 10px; }
+.paper-preview-row { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; color: var(--text-2); padding: 8px 10px; background: var(--bg); border-radius: 6px; margin-bottom: 6px; line-height: 1.4; }
+.paper-preview-num { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--primary-lt); color: var(--primary); font-weight: 700; font-size: 10px; display: flex; align-items: center; justify-content: center; }
+.paper-downloads { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.paper-downloads .btn-primary, .paper-downloads .btn-secondary { margin-top: 0; }
 </style>
 </head>
 <body>
@@ -339,13 +349,35 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
       <div class="locked-banner">
         <div class="locked-icon">&#128274;</div>
         <div>
-          <div class="locked-title" id="locked-title">Question Paper Locked</div>
+          <div class="locked-title" id="locked-title">Question Bank Locked</div>
           <div class="locked-sub" id="locked-sub"></div>
         </div>
       </div>
       <div class="q-list" id="locked-list"></div>
-      <div class="locked-next-note">Phase D (PDF generation) builds on this locked set next. For now you can export the raw data to inspect it.</div>
-      <button class="btn-secondary" onclick="exportLockedJSON()">&#11015;&#65039; Export Locked Paper (JSON)</button>
+      <button class="btn-secondary" onclick="exportLockedJSON()">&#11015;&#65039; Export Locked Bank (JSON)</button>
+    </div>
+  </div>
+
+  <!-- PHASE D: RANDOM PAPER DRAW + PDF DOWNLOAD -->
+  <div class="paper-section" id="paper-section">
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num done">&#10003;</div>
+        <div>
+          <div class="step-title">Generate a test paper</div>
+          <div class="step-desc" id="paper-desc">Randomly draw questions from the locked bank to produce a printable paper. Draw again anytime for a different combination.</div>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="draw-btn" onclick="generateRandomPaper()">&#127922; Draw Random Paper</button>
+
+      <div class="paper-preview" id="paper-preview"></div>
+
+      <div class="paper-downloads" id="paper-downloads" style="display:none">
+        <button class="btn-secondary" onclick="generateRandomPaper()">&#128256; Re-roll Different Questions</button>
+        <button class="btn-primary" onclick="downloadQuestionPaperPDF()">&#11015;&#65039; Download Question Paper (PDF)</button>
+        <button class="btn-primary" onclick="downloadAnswerKeyPDF()">&#11015;&#65039; Download Answer Key (PDF)</button>
+      </div>
     </div>
   </div>
 
@@ -655,7 +687,7 @@ function startReview(questions) {
 function updateReviewProgress() {
   const total = reviewQueue.length;
   const approvedCount = reviewQueue.filter(q => q.status === 'approved').length;
-  const target = MODE_CONFIG[selectedMode].paperSize;
+  const target = MODE_CONFIG[selectedMode].bankSize;
   const pct = Math.round((currentReviewIndex / total) * 100);
   document.getElementById('review-progress-fill').style.width = pct + '%';
   document.getElementById('review-progress-text').textContent =
@@ -972,6 +1004,151 @@ function escHtml(str) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
-</script>
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE D — RANDOM PAPER DRAW + PDF GENERATION
+// ═══════════════════════════════════════════════════════════════
+
+let currentPaperDraw = null;
+
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function truncate(str, n) {
+  return str && str.length > n ? str.slice(0, n) + '\u2026' : (str || '');
+}
+
+function generateRandomPaper() {
+  const paperSize = MODE_CONFIG[selectedMode].paperSize;
+  const shuffled = shuffleArray(lockedBank);
+  currentPaperDraw = shuffled.slice(0, paperSize);
+
+  const previewEl = document.getElementById('paper-preview');
+  previewEl.innerHTML = '<div class="paper-preview-title">' + currentPaperDraw.length + ' questions drawn for this paper:</div>' +
+    currentPaperDraw.map((q, i) =>
+      '<div class="paper-preview-row"><span class="paper-preview-num">' + (i + 1) + '</span>' + escHtml(truncate(q.question_text, 100)) + '</div>'
+    ).join('');
+
+  document.getElementById('draw-btn').textContent = '\u267b\ufe0f Draw Again';
+  document.getElementById('paper-downloads').style.display = 'flex';
+  previewEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function sanitizeFilename(name) {
+  return (name || 'Assessment').replace(/[^a-z0-9]/gi, '_').slice(0, 50);
+}
+
+function downloadQuestionPaperPDF() {
+  if (!currentPaperDraw) return;
+  const doc = buildPaperPDF(currentPaperDraw, false);
+  doc.save(sanitizeFilename(activeDocName) + '_Question_Paper.pdf');
+}
+
+function downloadAnswerKeyPDF() {
+  if (!currentPaperDraw) return;
+  const doc = buildPaperPDF(currentPaperDraw, true);
+  doc.save(sanitizeFilename(activeDocName) + '_Answer_Key.pdf');
+}
+
+function buildPaperPDF(questions, withAnswers) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageWidth = 210, pageHeight = 297, margin = 20, contentWidth = pageWidth - margin * 2;
+  let y = margin;
+
+  function checkPageBreak(neededSpace) {
+    if (y + neededSpace > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  }
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+  const titleLines = doc.splitTextToSize(activeDocName + (withAnswers ? ' \u2014 Answer Key' : ' \u2014 Assessment'), contentWidth);
+  doc.text(titleLines, margin, y);
+  y += titleLines.length * 7 + 4;
+
+  if (!withAnswers) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.text('Name: _________________________________        Date: _______________', margin, y);
+    y += 7;
+    doc.text('Office Location: ____________________        Function: ____________________', margin, y);
+    y += 6;
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(110);
+    doc.text('Instructions: Mark the circle or box next to your chosen answer(s).', margin, y);
+    doc.setTextColor(0);
+    y += 10;
+  } else {
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(100);
+    doc.text('Correct answers are marked. Reasoning and source reference included for each question.', margin, y);
+    doc.setTextColor(0);
+    y += 10;
+  }
+
+  questions.forEach((q, i) => {
+    checkPageBreak(22);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    const qLines = doc.splitTextToSize((i + 1) + '. ' + (q.question_text || ''), contentWidth);
+    doc.text(qLines, margin, y);
+    y += qLines.length * 5.5 + 1;
+
+    if (q.type === 'multiple_choice') {
+      checkPageBreak(6);
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(100);
+      doc.text('Select all that apply.', margin + 5, y);
+      doc.setTextColor(0);
+      y += 5;
+    }
+
+    const correctSet = new Set(q.correct_answer || []);
+    (q.options || []).forEach((opt, oi) => {
+      checkPageBreak(8);
+      const letter = String.fromCharCode(65 + oi);
+      const marker = q.type === 'multiple_choice' ? '\u25A1' : '\u25CB';
+      const isCorrect = withAnswers && correctSet.has(oi);
+
+      doc.setFont('helvetica', isCorrect ? 'bold' : 'normal');
+      doc.setFontSize(10);
+      if (isCorrect) doc.setTextColor(0, 120, 60);
+
+      const optText = marker + '   ' + letter + '.  ' + opt + (isCorrect ? '   \u2713 CORRECT' : '');
+      const optLines = doc.splitTextToSize(optText, contentWidth - 8);
+      doc.text(optLines, margin + 6, y);
+      y += optLines.length * 5.2;
+      doc.setTextColor(0);
+    });
+
+    if (withAnswers) {
+      checkPageBreak(16);
+      y += 1;
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(70);
+      const reasonLines = doc.splitTextToSize('Reasoning: ' + (q.reasoning || ''), contentWidth - 6);
+      doc.text(reasonLines, margin + 6, y);
+      y += reasonLines.length * 4.6 + 1;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(130);
+      doc.text('Source: ' + (q.source_section || '\u2014') + ', Page ' + (q.source_page || '\u2014'), margin + 6, y);
+      doc.setTextColor(0);
+      y += 6;
+    }
+
+    y += 5;
+  });
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
+    doc.text('Page ' + p + ' of ' + pageCount, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    doc.setTextColor(0);
+  }
+
+  return doc;
+}</script>
 </body>
 </html>
