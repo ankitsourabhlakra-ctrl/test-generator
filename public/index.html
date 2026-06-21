@@ -134,6 +134,64 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
   .header-inner { padding: 0 16px; }
   .shell { padding: 0 16px 60px; }
 }
+
+/* ── PHASE C: REVIEW ── */
+.review-section, .finalize-section, .locked-section { display: none; }
+.review-section.visible, .finalize-section.visible, .locked-section.visible { display: block; }
+
+.review-progress { margin-bottom: 16px; }
+.review-progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+.review-progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.3s; }
+.review-progress-row { display: flex; justify-content: space-between; font-size: 12px; }
+.review-progress-text { color: var(--text-2); font-weight: 600; }
+.review-approved-count { color: var(--text-3); font-family: var(--mono); }
+
+.review-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; min-height: 180px; }
+.review-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+.rev-btn { padding: 13px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.15s; }
+.rev-btn:hover { opacity: 0.88; }
+.rev-btn.approve { background: var(--green); color: white; }
+.rev-btn.reject { background: var(--red); color: white; }
+.rev-btn.edit { background: var(--accent); color: white; }
+.rev-btn.cancel { background: var(--border); color: var(--text-2); }
+
+.q-tag.status-approved { background: var(--green-lt); color: var(--green); }
+.q-tag.status-rejected { background: var(--red-lt); color: var(--red); }
+
+/* EDIT FORM */
+.edit-form { display: flex; flex-direction: column; }
+.edit-label { font-size: 11px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+.edit-field-wrap { margin-bottom: 8px; }
+.edit-textarea { width: 100%; border: 1px solid var(--border-2); border-radius: 6px; padding: 10px 12px; font-family: var(--sans); font-size: 13px; resize: vertical; min-height: 56px; margin-bottom: 2px; }
+.edit-textarea:focus { outline: none; border-color: var(--primary); }
+.char-counter { font-size: 10px; color: var(--text-3); font-family: var(--mono); display: block; text-align: right; margin-bottom: 8px; }
+.char-counter.over { color: var(--red); font-weight: 700; }
+.edit-option-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.edit-option-row input[type="radio"], .edit-option-row input[type="checkbox"] { flex-shrink: 0; width: 16px; height: 16px; }
+.edit-option-input { flex: 1; border: 1px solid var(--border-2); border-radius: 5px; padding: 7px 10px; font-size: 12px; font-family: var(--sans); }
+.edit-option-input:focus { outline: none; border-color: var(--primary); }
+.edit-option-row .char-counter { margin-bottom: 0; width: 50px; text-align: right; }
+.edit-actions { display: flex; gap: 10px; margin-top: 16px; }
+.edit-actions .rev-btn { flex: 1; }
+
+/* FINALIZE CHECKLIST */
+.finalize-status { font-size: 13px; padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; }
+.finalize-status.ok { background: var(--green-lt); color: #166534; }
+.finalize-status.warn { background: var(--accent-lt); color: #92400E; }
+.finalize-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.finalize-row { display: flex; align-items: flex-start; gap: 12px; background: white; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; cursor: pointer; transition: border-color 0.15s; }
+.finalize-row:hover { border-color: var(--primary-lt); }
+.finalize-row input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; }
+.finalize-row-body { flex: 1; min-width: 0; }
+
+/* LOCKED */
+.locked-banner { display: flex; align-items: center; gap: 14px; background: var(--primary-lt); border-radius: 8px; padding: 16px 18px; margin-bottom: 18px; }
+.locked-icon { font-size: 26px; }
+.locked-title { font-size: 16px; font-weight: 700; color: var(--primary); }
+.locked-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+.locked-next-note { font-size: 12px; color: var(--text-3); background: var(--bg); border-radius: 6px; padding: 10px 12px; margin: 16px 0; }
+.btn-secondary { width: 100%; padding: 12px; background: white; color: var(--primary); border: 1.5px solid var(--primary); border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-secondary:hover { background: var(--primary-lt); }
 </style>
 </head>
 <body>
@@ -231,11 +289,61 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
     <div class="processing-hint">This can take 30&ndash;60 seconds for a full question bank</div>
   </div>
 
-  <!-- RESULTS -->
+  <!-- RESULTS (Phase B summary banner only — review takes over below) -->
   <div class="results-card" id="results-card">
     <div class="results-summary" id="results-summary"></div>
     <div class="assessment-note" id="assessment-note" style="display:none"></div>
-    <div class="q-list" id="q-list"></div>
+  </div>
+
+  <!-- REVIEW — STEP 1: ONE AT A TIME -->
+  <div class="review-section" id="review-section">
+    <div class="review-progress">
+      <div class="review-progress-bar"><div class="review-progress-fill" id="review-progress-fill"></div></div>
+      <div class="review-progress-row">
+        <span class="review-progress-text" id="review-progress-text">Question 1 of 10</span>
+        <span class="review-approved-count" id="review-approved-count">0 approved &middot; target 5</span>
+      </div>
+    </div>
+
+    <div class="review-card" id="review-card"></div>
+
+    <div class="review-actions" id="review-actions">
+      <button class="rev-btn reject" onclick="rejectCurrent()">&#10005; Reject</button>
+      <button class="rev-btn edit" onclick="startEdit()">&#9999;&#65039; Edit</button>
+      <button class="rev-btn approve" onclick="approveCurrent()">&#10003; Approve</button>
+    </div>
+  </div>
+
+  <!-- REVIEW — STEP 2: FINALIZE / SWAP -->
+  <div class="finalize-section" id="finalize-section">
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num done">&#10003;</div>
+        <div>
+          <div class="step-title">Finalize your question paper</div>
+          <div class="step-desc" id="finalize-desc">Select exactly the questions you want in the final paper</div>
+        </div>
+      </div>
+      <div class="finalize-status" id="finalize-status"></div>
+      <div class="finalize-list" id="finalize-list"></div>
+      <button class="btn-primary" id="lock-btn" disabled onclick="lockPaper()">Lock Question Paper</button>
+    </div>
+  </div>
+
+  <!-- LOCKED CONFIRMATION -->
+  <div class="locked-section" id="locked-section">
+    <div class="step-card">
+      <div class="locked-banner">
+        <div class="locked-icon">&#128274;</div>
+        <div>
+          <div class="locked-title" id="locked-title">Question Paper Locked</div>
+          <div class="locked-sub" id="locked-sub"></div>
+        </div>
+      </div>
+      <div class="q-list" id="locked-list"></div>
+      <div class="locked-next-note">Phase D (PDF generation) builds on this locked set next. For now you can export the raw data to inspect it.</div>
+      <button class="btn-secondary" onclick="exportLockedJSON()">&#11015;&#65039; Export Locked Paper (JSON)</button>
+    </div>
   </div>
 
 </div>
@@ -501,43 +609,286 @@ function renderResults(bank, docName) {
     noteEl.style.display = 'none';
   }
 
-  const listEl = document.getElementById('q-list');
-  let html = '';
-
-  questions.forEach((q, i) => {
-
-    const correctSet = new Set(q.correct_answer || []);
-    const optionsHtml = (q.options || []).map((opt, idx) => {
-      const isCorrect = correctSet.has(idx);
-      return '<div class="q-option' + (isCorrect ? ' correct' : '') + '">' +
-        '<span class="q-option-marker">' + (isCorrect ? '\u2713' : '') + '</span>' +
-        escHtml(opt) + '</div>';
-    }).join('');
-
-    const typeLabel = {
-      single_choice: 'Single Choice', multiple_choice: 'Multiple Choice',
-      fill_blank: 'Fill in the Blank'
-    }[q.type] || q.type;
-
-    html += '<div class="q-card">' +
-      '<div class="q-card-head">' +
-        '<span class="q-tag type">' + escHtml(typeLabel) + '</span>' +
-        '<span class="q-tag difficulty-' + escHtml(q.difficulty||'Medium') + '">' + escHtml(q.difficulty||'') + '</span>' +
-        '<span class="q-id">' + escHtml(q.question_id||('Q'+(i+1))) + '</span>' +
-      '</div>' +
-      '<div class="q-text">' + escHtml(q.question_text||'') + '</div>' +
-      '<div class="q-options">' + optionsHtml + '</div>' +
-      '<div class="q-reasoning">' + escHtml(q.reasoning||'') + '</div>' +
-      '<div class="q-meta">' +
-        '<span class="q-meta-item">&#128214; ' + escHtml(q.source_section||'\u2014') + '</span>' +
-        '<span class="q-meta-item">&#128196; Page ' + escHtml(String(q.source_page||'\u2014')) + '</span>' +
-      '</div>' +
-    '</div>';
-  });
-
-  listEl.innerHTML = html;
   document.getElementById('results-card').classList.add('visible');
-  document.getElementById('results-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  startReview(questions);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE C — REVIEW, EDIT, FINALIZE, LOCK
+// ═══════════════════════════════════════════════════════════════
+
+let reviewQueue = [];        // working copy of questions with status + edits
+let currentReviewIndex = 0;
+let editMode = false;
+let editBuffer = null;
+let lockedPaper = null;
+
+const TYPE_LABELS = {
+  single_choice: 'Single Choice', multiple_choice: 'Multiple Choice', fill_blank: 'Fill in the Blank'
+};
+const STEM_CAP = 280, OPTION_CAP = 100;
+
+function startReview(questions) {
+  reviewQueue = questions.map((q, i) => ({
+    ...q,
+    question_id: q.question_id || ('Q' + (i + 1)),
+    status: 'pending'
+  }));
+  currentReviewIndex = 0;
+  editMode = false;
+
+  document.getElementById('finalize-section').classList.remove('visible');
+  document.getElementById('locked-section').classList.remove('visible');
+  document.getElementById('review-section').classList.add('visible');
+
+  renderReviewCard();
+  document.getElementById('review-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updateReviewProgress() {
+  const total = reviewQueue.length;
+  const approvedCount = reviewQueue.filter(q => q.status === 'approved').length;
+  const target = MODE_CONFIG[selectedMode].paperSize;
+  const pct = Math.round((currentReviewIndex / total) * 100);
+  document.getElementById('review-progress-fill').style.width = pct + '%';
+  document.getElementById('review-progress-text').textContent =
+    'Question ' + Math.min(currentReviewIndex + 1, total) + ' of ' + total;
+  document.getElementById('review-approved-count').textContent =
+    approvedCount + ' approved \u00b7 target ' + target;
+}
+
+function renderReviewCard() {
+  updateReviewProgress();
+  const q = reviewQueue[currentReviewIndex];
+  const cardEl = document.getElementById('review-card');
+
+  if (!q) return;
+
+  if (editMode) {
+    cardEl.innerHTML = buildEditForm(q);
+  } else {
+    cardEl.innerHTML = buildReadCard(q, true);
+  }
+}
+
+function buildReadCard(q, withStatusTag) {
+  const correctSet = new Set(q.correct_answer || []);
+  const optionsHtml = (q.options || []).map((opt, idx) => {
+    const isCorrect = correctSet.has(idx);
+    return '<div class="q-option' + (isCorrect ? ' correct' : '') + '">' +
+      '<span class="q-option-marker">' + (isCorrect ? '\u2713' : '') + '</span>' +
+      escHtml(opt) + '</div>';
+  }).join('');
+
+  const statusTag = withStatusTag && q.status !== 'pending'
+    ? '<span class="q-tag status-' + q.status + '">' + (q.status === 'approved' ? '\u2713 Approved' : '\u2715 Rejected') + '</span>'
+    : '';
+
+  return '<div class="q-card-head">' +
+      '<span class="q-tag type">' + escHtml(TYPE_LABELS[q.type] || q.type) + '</span>' +
+      '<span class="q-tag difficulty-' + escHtml(q.difficulty||'Medium') + '">' + escHtml(q.difficulty||'') + '</span>' +
+      statusTag +
+      '<span class="q-id">' + escHtml(q.question_id) + '</span>' +
+    '</div>' +
+    '<div class="q-text">' + escHtml(q.question_text||'') + '</div>' +
+    '<div class="q-options">' + optionsHtml + '</div>' +
+    '<div class="q-reasoning">' + escHtml(q.reasoning||'') + '</div>' +
+    '<div class="q-meta">' +
+      '<span class="q-meta-item">&#128214; ' + escHtml(q.source_section||'\u2014') + '</span>' +
+      '<span class="q-meta-item">&#128196; Page ' + escHtml(String(q.source_page||'\u2014')) + '</span>' +
+    '</div>';
+}
+
+function buildEditForm(q) {
+  const stemLen = (q.question_text || '').length;
+  const isMulti = q.type === 'multiple_choice';
+  const correctSet = new Set(q.correct_answer || []);
+
+  let optionsHtml = (q.options || []).map((opt, idx) => {
+    const checked = correctSet.has(idx) ? 'checked' : '';
+    const inputType = isMulti ? 'checkbox' : 'radio';
+    return '<div class="edit-option-row">' +
+      '<input type="' + inputType + '" name="correct-opt" ' + checked +
+        ' onchange="editToggleCorrect(' + idx + ', ' + isMulti + ')">' +
+      '<input type="text" class="edit-option-input" maxlength="160" value="' + escAttr(opt) + '" ' +
+        'oninput="editUpdateOption(' + idx + ', this.value); updateCharCounter(this, ' + OPTION_CAP + ')">' +
+      '<span class="char-counter" data-cap="' + OPTION_CAP + '">' + opt.length + '/' + OPTION_CAP + '</span>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="edit-form">' +
+    '<div class="q-card-head">' +
+      '<span class="q-tag type">' + escHtml(TYPE_LABELS[q.type] || q.type) + '</span>' +
+      '<span class="q-tag difficulty-' + escHtml(q.difficulty||'Medium') + '">' + escHtml(q.difficulty||'') + '</span>' +
+      '<span class="q-id">' + escHtml(q.question_id) + ' &mdash; editing</span>' +
+    '</div>' +
+    '<label class="edit-label">Question text</label>' +
+    '<div class="edit-field-wrap">' +
+      '<textarea class="edit-textarea" maxlength="400" oninput="editUpdateStem(this.value); updateCharCounter(this, ' + STEM_CAP + ')">' + escHtml(q.question_text||'') + '</textarea>' +
+      '<span class="char-counter" data-cap="' + STEM_CAP + '">' + stemLen + '/' + STEM_CAP + '</span>' +
+    '</div>' +
+    '<label class="edit-label" style="margin-top:14px">Options ' + (isMulti ? '(check all correct)' : '(select the correct one)') + '</label>' +
+    optionsHtml +
+    '<label class="edit-label" style="margin-top:14px">Reasoning</label>' +
+    '<textarea class="edit-textarea" maxlength="500" oninput="editUpdateReasoning(this.value)">' + escHtml(q.reasoning||'') + '</textarea>' +
+    '<div class="edit-actions">' +
+      '<button class="rev-btn cancel" onclick="cancelEdit()">Cancel</button>' +
+      '<button class="rev-btn approve" onclick="saveEdit()">Save &amp; Approve</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function updateCharCounter(el, cap) {
+  // Every editable field is wrapped in its own container with exactly one
+  // .char-counter sibling, so this lookup is always correctly scoped.
+  const counter = el.parentElement.querySelector('.char-counter');
+  if (!counter) return;
+  const len = el.value.length;
+  counter.textContent = len + '/' + cap;
+  counter.classList.toggle('over', len > cap);
+}
+
+function editToggleCorrect(idx, isMulti) {
+  const q = reviewQueue[currentReviewIndex];
+  let set = new Set(q.correct_answer || []);
+  if (isMulti) {
+    if (set.has(idx)) set.delete(idx); else set.add(idx);
+  } else {
+    set = new Set([idx]);
+  }
+  q.correct_answer = Array.from(set).sort();
+}
+function editUpdateOption(idx, value) {
+  reviewQueue[currentReviewIndex].options[idx] = value;
+}
+function editUpdateStem(value) {
+  reviewQueue[currentReviewIndex].question_text = value;
+}
+function editUpdateReasoning(value) {
+  reviewQueue[currentReviewIndex].reasoning = value;
+}
+
+function startEdit() {
+  editMode = true;
+  renderReviewCard();
+}
+function cancelEdit() {
+  editMode = false;
+  renderReviewCard();
+}
+function saveEdit() {
+  reviewQueue[currentReviewIndex].status = 'approved';
+  editMode = false;
+  advanceReview();
+}
+
+function approveCurrent() {
+  reviewQueue[currentReviewIndex].status = 'approved';
+  advanceReview();
+}
+function rejectCurrent() {
+  reviewQueue[currentReviewIndex].status = 'rejected';
+  advanceReview();
+}
+
+function advanceReview() {
+  currentReviewIndex++;
+  if (currentReviewIndex >= reviewQueue.length) {
+    finishSequentialReview();
+  } else {
+    renderReviewCard();
+  }
+}
+
+// ── STEP 2: FINALIZE / SWAP ──────────────────────────────────────
+function finishSequentialReview() {
+  document.getElementById('review-section').classList.remove('visible');
+  document.getElementById('finalize-section').classList.add('visible');
+  renderFinalizeChecklist();
+  document.getElementById('finalize-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderFinalizeChecklist() {
+  const target = MODE_CONFIG[selectedMode].paperSize;
+  const listEl = document.getElementById('finalize-list');
+
+  let html = '';
+  reviewQueue.forEach((q, i) => {
+    const checked = q.status === 'approved' ? 'checked' : '';
+    html += '<label class="finalize-row">' +
+      '<input type="checkbox" ' + checked + ' onchange="toggleFinalizeSelection(' + i + ', this.checked)">' +
+      '<div class="finalize-row-body">' + buildReadCard(q, false) + '</div>' +
+    '</label>';
+  });
+  listEl.innerHTML = html;
+  updateFinalizeStatus();
+}
+
+function toggleFinalizeSelection(index, checked) {
+  reviewQueue[index].status = checked ? 'approved' : 'rejected';
+  updateFinalizeStatus();
+}
+
+function updateFinalizeStatus() {
+  const target = MODE_CONFIG[selectedMode].paperSize;
+  const selectedCount = reviewQueue.filter(q => q.status === 'approved').length;
+  const totalAvailable = reviewQueue.length;
+  const statusEl = document.getElementById('finalize-status');
+  const lockBtn = document.getElementById('lock-btn');
+
+  if (totalAvailable < target) {
+    statusEl.className = 'finalize-status warn';
+    statusEl.innerHTML = '&#9888;&#65039; This document only yielded ' + totalAvailable + ' candidate questions, fewer than the ' + target + ' needed. You can lock with all ' + totalAvailable + ', or go back and try a richer document.';
+    lockBtn.disabled = selectedCount !== totalAvailable;
+    lockBtn.textContent = 'Lock with ' + selectedCount + ' Questions';
+  } else if (selectedCount === target) {
+    statusEl.className = 'finalize-status ok';
+    statusEl.innerHTML = '&#9989; ' + selectedCount + ' of ' + target + ' selected \u2014 ready to lock.';
+    lockBtn.disabled = false;
+    lockBtn.textContent = 'Lock Question Paper (' + selectedCount + ' Questions)';
+  } else if (selectedCount < target) {
+    statusEl.className = 'finalize-status warn';
+    statusEl.innerHTML = '&#9888;&#65039; ' + selectedCount + ' of ' + target + ' selected \u2014 select ' + (target - selectedCount) + ' more.';
+    lockBtn.disabled = true;
+    lockBtn.textContent = 'Select ' + (target - selectedCount) + ' more to continue';
+  } else {
+    statusEl.className = 'finalize-status warn';
+    statusEl.innerHTML = '&#9888;&#65039; ' + selectedCount + ' of ' + target + ' selected \u2014 deselect ' + (selectedCount - target) + ' to continue.';
+    lockBtn.disabled = true;
+    lockBtn.textContent = 'Deselect ' + (selectedCount - target) + ' to continue';
+  }
+}
+
+// ── LOCK ──────────────────────────────────────────────────────────
+function lockPaper() {
+  lockedPaper = reviewQueue.filter(q => q.status === 'approved');
+
+  document.getElementById('finalize-section').classList.remove('visible');
+  document.getElementById('locked-section').classList.add('visible');
+
+  document.getElementById('locked-sub').textContent =
+    lockedPaper.length + ' questions \u00b7 from ' + escHtml(selectedDocName);
+
+  const listEl = document.getElementById('locked-list');
+  listEl.innerHTML = lockedPaper.map(q => '<div class="q-card">' + buildReadCard(q, false) + '</div>').join('');
+
+  document.getElementById('locked-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function exportLockedJSON() {
+  const blob = new Blob([JSON.stringify(lockedPaper, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'locked_question_paper.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function escAttr(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 // ── UTIL ──────────────────────────────────────────────────────────
