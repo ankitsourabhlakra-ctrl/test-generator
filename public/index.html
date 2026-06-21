@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Policy Test Generator</title>
+<title>Test Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -181,19 +181,13 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
 /* FINALIZE CHECKLIST */
 .finalize-status { font-size: 13px; padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; }
 .finalize-status.ok { background: var(--green-lt); color: #166534; }
-.finalize-status.warn { background: var(--accent-lt); color: #92400E; }
 .finalize-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
-.finalize-row { display: flex; align-items: flex-start; gap: 12px; background: white; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; cursor: pointer; transition: border-color 0.15s; }
-.finalize-row:hover { border-color: var(--primary-lt); }
-.finalize-row input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; }
-.finalize-row-body { flex: 1; min-width: 0; }
 
 /* LOCKED */
 .locked-banner { display: flex; align-items: center; gap: 14px; background: var(--primary-lt); border-radius: 8px; padding: 16px 18px; margin-bottom: 18px; }
 .locked-icon { font-size: 26px; }
 .locked-title { font-size: 16px; font-weight: 700; color: var(--primary); }
 .locked-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
-.locked-next-note { font-size: 12px; color: var(--text-3); background: var(--bg); border-radius: 6px; padding: 10px 12px; margin: 16px 0; }
 .btn-secondary { width: 100%; padding: 12px; background: white; color: var(--primary); border: 1.5px solid var(--primary); border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .btn-secondary:hover { background: var(--primary-lt); }
 
@@ -211,6 +205,16 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
 .branding-input { width: 100%; border: 1px solid var(--border-2); border-radius: 6px; padding: 9px 12px; font-size: 13px; font-family: var(--sans); margin-top: 4px; }
 .branding-input:focus { outline: none; border-color: var(--primary); }
 .branding-hint { font-size: 11px; color: var(--text-3); margin-top: -2px; }
+
+/* ── ABOUT / HOW TO USE ── */
+.about-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-top: 32px; }
+.about-title { font-size: 16px; font-weight: 700; color: var(--primary); margin-bottom: 10px; }
+.about-card p { font-size: 13px; color: var(--text-2); line-height: 1.6; margin-bottom: 12px; }
+.about-subtitle { font-size: 12px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.04em; margin: 18px 0 8px; }
+.about-list { padding-left: 20px; margin-bottom: 4px; }
+.about-list li { font-size: 13px; color: var(--text-2); line-height: 1.6; margin-bottom: 6px; }
+.about-list-ordered li { margin-bottom: 8px; }
+.about-note { font-size: 12px; color: var(--text-3); font-style: italic; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -219,8 +223,8 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
   <div class="header-inner">
     <div class="header-logo">TG</div>
     <div>
-      <div class="header-title">Policy Test Generator</div>
-      <div class="header-sub">Upload a policy document → AI-generated question bank</div>
+      <div class="header-title">Test Generator</div>
+      <div class="header-sub">Upload any document → AI-generated question bank</div>
     </div>
   </div>
 </header>
@@ -399,6 +403,30 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); font
     </div>
   </div>
 
+  <!-- ABOUT / HOW TO USE -->
+  <div class="about-card">
+    <div class="about-title">About This Tool</div>
+    <p>Test Generator turns any document into a ready-to-use assessment. Upload a PDF and the tool reads it directly, writes a bank of multiple-choice questions grounded in the actual content, and lets you review and approve every question before producing a printable test paper and a separate answer key.</p>
+
+    <div class="about-subtitle">Works especially well for</div>
+    <ul class="about-list">
+      <li><strong>Company policy &amp; compliance documents</strong> &mdash; onboarding quizzes, Code of Conduct refreshers, SOP comprehension checks</li>
+      <li><strong>Short literary works &amp; articles</strong> &mdash; reading comprehension tests for short stories, essays, or excerpts</li>
+    </ul>
+    <p class="about-note">Documents with clear, verifiable content &mdash; rules, definitions, thresholds, plot details, character facts &mdash; produce the strongest questions. Very abstract or purely poetic text will generate weaker ones, since there is less concrete fact to test against.</p>
+
+    <div class="about-subtitle">How to use it</div>
+    <ol class="about-list about-list-ordered">
+      <li>Choose your test length &mdash; 5 or 10 questions</li>
+      <li>Upload a PDF, or try one of the sample policy documents</li>
+      <li>Review the generated questions one at a time &mdash; approve, edit, or reject. Rejected questions are automatically replaced</li>
+      <li>Once the full bank is approved, lock it</li>
+      <li>Draw a random paper from the locked bank anytime &mdash; generates a clean question paper and a separate answer key with reasoning and source citations</li>
+    </ol>
+
+    <p class="about-note">Supports documents in English and Hindi.</p>
+  </div>
+
 </div>
 
 <script>
@@ -442,7 +470,6 @@ let selectedMode = null;          // 'A' or 'B'
 let selectedDocKey = null;        // 'coc' / 'te' / 'dp' / null if custom upload
 let selectedDocName = null;
 let uploadedBase64 = null;        // set when a custom file is uploaded
-let generatedBank = null;
 
 const MODE_CONFIG = {
   A: { paperSize: 5, bankSize: 10 },
@@ -590,7 +617,6 @@ async function generateQuestionBank() {
       throw new Error('Could not parse the generated question bank. Please try again.');
     }
 
-    generatedBank = parsed;
     renderResults(parsed, docName);
 
   } catch (e) {
