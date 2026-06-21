@@ -1056,6 +1056,22 @@ function downloadAnswerKeyPDF() {
   doc.save(sanitizeFilename(activeDocName) + '_Answer_Key.pdf');
 }
 
+function sanitizeForPDF(str) {
+  // jsPDF's standard fonts (Helvetica) only support WinAnsi/Latin-1.
+  // Anything outside that range — including the Rupee sign and curly
+  // quotes — renders as garbage glyphs inconsistently across viewers.
+  // Map known characters to safe ASCII first, then strip anything left.
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/\u20B9/g, 'Rs.')          // ₹ rupee sign
+    .replace(/[\u2018\u2019]/g, "'")    // curly single quotes
+    .replace(/[\u201C\u201D]/g, '"')    // curly double quotes
+    .replace(/\u2026/g, '...')           // ellipsis
+    .replace(/[\u2013\u2014]/g, '-')    // en dash / em dash
+    .replace(/\u00A0/g, ' ')             // non-breaking space
+    .replace(/[^\x20-\x7E]/g, '');      // strip anything else non-ASCII
+}
+
 function buildPaperPDF(questions, withAnswers) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -1069,8 +1085,10 @@ function buildPaperPDF(questions, withAnswers) {
     }
   }
 
+  const docTitle = sanitizeForPDF(activeDocName) + (withAnswers ? ' - Answer Key' : ' - Assessment');
+
   doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
-  const titleLines = doc.splitTextToSize(activeDocName + (withAnswers ? ' \u2014 Answer Key' : ' \u2014 Assessment'), contentWidth);
+  const titleLines = doc.splitTextToSize(docTitle, contentWidth);
   doc.text(titleLines, margin, y);
   y += titleLines.length * 7 + 4;
 
@@ -1081,7 +1099,7 @@ function buildPaperPDF(questions, withAnswers) {
     doc.text('Office Location: ____________________        Function: ____________________', margin, y);
     y += 6;
     doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(110);
-    doc.text('Instructions: Mark the circle or box next to your chosen answer(s).', margin, y);
+    doc.text('Instructions: Mark the box next to your chosen answer(s).', margin, y);
     doc.setTextColor(0);
     y += 10;
   } else {
@@ -1094,7 +1112,8 @@ function buildPaperPDF(questions, withAnswers) {
   questions.forEach((q, i) => {
     checkPageBreak(22);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    const qLines = doc.splitTextToSize((i + 1) + '. ' + (q.question_text || ''), contentWidth);
+    const qText = sanitizeForPDF(q.question_text);
+    const qLines = doc.splitTextToSize((i + 1) + '. ' + qText, contentWidth);
     doc.text(qLines, margin, y);
     y += qLines.length * 5.5 + 1;
 
@@ -1110,14 +1129,15 @@ function buildPaperPDF(questions, withAnswers) {
     (q.options || []).forEach((opt, oi) => {
       checkPageBreak(8);
       const letter = String.fromCharCode(65 + oi);
-      const marker = q.type === 'multiple_choice' ? '\u25A1' : '\u25CB';
+      const marker = q.type === 'multiple_choice' ? '[ ]' : '( )';
       const isCorrect = withAnswers && correctSet.has(oi);
+      const optClean = sanitizeForPDF(opt);
 
       doc.setFont('helvetica', isCorrect ? 'bold' : 'normal');
       doc.setFontSize(10);
       if (isCorrect) doc.setTextColor(0, 120, 60);
 
-      const optText = marker + '   ' + letter + '.  ' + opt + (isCorrect ? '   \u2713 CORRECT' : '');
+      const optText = marker + '  ' + letter + '.  ' + optClean + (isCorrect ? '   [CORRECT]' : '');
       const optLines = doc.splitTextToSize(optText, contentWidth - 8);
       doc.text(optLines, margin + 6, y);
       y += optLines.length * 5.2;
@@ -1128,11 +1148,13 @@ function buildPaperPDF(questions, withAnswers) {
       checkPageBreak(16);
       y += 1;
       doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(70);
-      const reasonLines = doc.splitTextToSize('Reasoning: ' + (q.reasoning || ''), contentWidth - 6);
+      const reasonClean = sanitizeForPDF(q.reasoning);
+      const reasonLines = doc.splitTextToSize('Reasoning: ' + reasonClean, contentWidth - 6);
       doc.text(reasonLines, margin + 6, y);
       y += reasonLines.length * 4.6 + 1;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(130);
-      doc.text('Source: ' + (q.source_section || '\u2014') + ', Page ' + (q.source_page || '\u2014'), margin + 6, y);
+      const sourceText = 'Source: ' + sanitizeForPDF(q.source_section || '-') + ', Page ' + sanitizeForPDF(String(q.source_page || '-'));
+      doc.text(sourceText, margin + 6, y);
       doc.setTextColor(0);
       y += 6;
     }
